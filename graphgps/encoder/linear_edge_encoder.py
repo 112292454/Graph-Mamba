@@ -15,11 +15,16 @@ class LinearEdgeEncoder(torch.nn.Module):
             # 原始支持的数据集
             'DD', 'PROTEINS', 'colors3', 'mutagenicity', 'coildel', 'synthetic', 'dblp', 'twitter',
             # 导出数据集 - 分子数据集
-            'qm9', 'subset', 'aqsol',  # subset是ZINC的名称
+            'qm9', 'subset', 'aqsol', 'AQSOL', 'QM9',  # subset是ZINC的名称，支持大小写
+            # QM9数据集的各种属性变体
+            'QM9-homo', 'QM9-gap', 'QM9-lumo', 'QM9-all', 'QM9-mu', 'QM9-alpha',
+            'QM9-r2', 'QM9-zpve', 'QM9-u0', 'QM9-u298', 'QM9-h298', 'QM9-g298', 'QM9-cv',
+            'QM9-u0_atom', 'QM9-u298_atom', 'QM9-h298_atom', 'QM9-g298_atom',
             # 导出数据集 - OGB数据集  
             'ogbg-molhiv', 'peptides-functional', 'peptides-structural',
             # 导出数据集 - TU数据集的不同命名方式
             'dd', 'proteins', 'COLORS3', 'MUTAGENICITY', 'COILDEL', 'SYNTHETIC', 'DBLP', 'TWITTER',
+            'COLORS-3', 'COIL-DEL', 'TWITTER-Real-Graph-Partial', 'Mutagenicity',  # 支持更多命名变体
             # 其他可能的命名方式
             'colors-3', 'coil-del'
         ]:  # 支持所有导出数据集的1维边特征

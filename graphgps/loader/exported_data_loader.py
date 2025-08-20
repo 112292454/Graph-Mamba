@@ -30,7 +30,8 @@ class ExportedDataset(InMemoryDataset):
                  exported_file_path: str,
                  dataset_name: str,
                  transform=None, 
-                 pre_transform=None):
+                 pre_transform=None,
+                 qm9_target: str = None):
         """
         Args:
             exported_file_path: 导出的pkl文件路径
@@ -38,6 +39,7 @@ class ExportedDataset(InMemoryDataset):
         """
         self.exported_file_path = exported_file_path
         self.dataset_name = dataset_name
+        self.qm9_target = qm9_target
         
         if not os.path.exists(exported_file_path):
             raise FileNotFoundError(f"Exported data file not found: {exported_file_path}")
@@ -90,6 +92,12 @@ class ExportedDataset(InMemoryDataset):
             self.data.y = self.data.y.view(num_samples, label_dim)
             # 更新slices信息：每个样本占一行
             self.slices['y'] = torch.arange(0, num_samples + 1)
+            
+            # QM9多属性回归任务的z-score标准化
+            if self.dataset_name == 'qm9' and self.qm9_target == 'all':
+                print(f"   📊 QM9多属性回归：对{label_dim}个属性进行z-score标准化")
+                # 计算每个属性的均值和标准差
+                self.data.y = (self.data.y - self.data.y.mean(dim=0, keepdim=True)) / (self.data.y.std(dim=0, keepdim=True) + 1e-8)
         
         # 设置数据分割
         self._setup_data_splits(splits_data)
@@ -142,14 +150,37 @@ class ExportedDataset(InMemoryDataset):
                 edge_feat = edge_feat.reshape(-1, 1)
             edge_attr = torch.from_numpy(edge_feat).float()  # 转换为float32以兼容Linear层
             
-            # 标签处理 - 只处理已知情况
+            # 标签处理 - 支持多种数据类型
             if isinstance(label, np.ndarray):
                 y = torch.from_numpy(label)
             elif isinstance(label, dict):
-                # 多属性回归（如QM9）
-                y = torch.tensor([label[k] for k in sorted(label.keys())])
+                # QM9数据集的特殊处理
+                if self.dataset_name == 'qm9' and self.qm9_target:
+                    if self.qm9_target == 'all':
+                        # 使用所有属性进行多回归任务
+                        qm9_properties = ['mu', 'alpha', 'homo', 'lumo', 'gap', 'r2', 'zpve', 'u0', 
+                                        'u298', 'h298', 'g298', 'cv', 'u0_atom', 'u298_atom', 'h298_atom', 'g298_atom']
+                        y = torch.tensor([label[k] for k in qm9_properties])
+                    else:
+                        # 使用指定属性进行单回归任务
+                        if self.qm9_target not in label:
+                            raise ValueError(f"QM9 target '{self.qm9_target}' not found in label keys: {list(label.keys())}")
+                        y = torch.tensor([label[self.qm9_target]])
+                else:
+                    # 其他dict格式标签（保持原有逻辑）
+                    y = torch.tensor([label[k] for k in sorted(label.keys())])
+            elif isinstance(label, (int, float, np.integer, np.floating)):
+                # 支持基本数据类型：int, float等
+                y = torch.tensor([label])
+            elif isinstance(label, (list, tuple)):
+                # 支持列表和元组
+                y = torch.tensor(label)
             else:
-                raise ValueError(f"Unsupported label type: {type(label)}. Expected np.ndarray or dict.")
+                # 尝试直接转换为tensor
+                try:
+                    y = torch.tensor([label])
+                except (ValueError, TypeError):
+                    raise ValueError(f"Unsupported label type: {type(label)}. Expected np.ndarray, dict, int, float, list, or tuple.")
             
             # 确保标签是正确的数据类型
             if y.dtype == torch.int64:
@@ -173,10 +204,16 @@ class ExportedDataset(InMemoryDataset):
     def _setup_data_splits(self, splits_data: Dict[str, np.ndarray]):
         """设置数据分割"""
         train_idx = splits_data['train'].tolist()
-        val_idx = splits_data['val'].tolist()
+        val_idx = splits_data['val'].tolist() 
         test_idx = splits_data['test'].tolist()
         
         self.split_idxs = [train_idx, val_idx, test_idx]
+        
+        # 添加GraphGym期望的索引字段
+        import torch
+        self.data.train_graph_index = torch.tensor(train_idx, dtype=torch.long)
+        self.data.val_graph_index = torch.tensor(val_idx, dtype=torch.long)
+        self.data.test_graph_index = torch.tensor(test_idx, dtype=torch.long)
         
         print(f"   📋 Data splits:")
         print(f"      Train: {len(train_idx)} samples")
@@ -215,7 +252,7 @@ DATASET_FILE_MAPPING = {
 }
 
 
-def load_exported_dataset(dataset_name: str, exported_data_dir: str) -> ExportedDataset:
+def load_exported_dataset(dataset_name: str, exported_data_dir: str, qm9_target: str = 'homo') -> ExportedDataset:
     """
     加载指定的导出数据集
     
@@ -235,14 +272,32 @@ def load_exported_dataset(dataset_name: str, exported_data_dir: str) -> Exported
     
     return ExportedDataset(
         exported_file_path=file_path,
-        dataset_name=dataset_name
+        dataset_name=dataset_name,
+        qm9_target=qm9_target if dataset_name == 'qm9' else None
     )
 
 
 # 主加载器要调用的预处理函数
 def preformat_exported_qm9(exported_data_dir):
     """加载导出的QM9数据"""
-    return load_exported_dataset('qm9', exported_data_dir)
+    from torch_geometric.graphgym.config import cfg
+    
+    # 根据数据集名称解析QM9属性配置
+    dataset_name = cfg.dataset.name
+    if dataset_name == 'QM9-homo':
+        qm9_target = 'homo'
+    elif dataset_name == 'QM9-gap':
+        qm9_target = 'gap'
+    elif dataset_name == 'QM9-all':
+        qm9_target = 'all'
+    elif dataset_name.startswith('QM9-'):
+        # 提取属性名，如 QM9-lumo -> lumo
+        qm9_target = dataset_name.split('-', 1)[1]
+    else:
+        # 默认使用homo属性
+        qm9_target = 'homo'
+    
+    return load_exported_dataset('qm9', exported_data_dir, qm9_target=qm9_target)
 
 def preformat_exported_zinc(exported_data_dir):
     """加载导出的ZINC数据"""

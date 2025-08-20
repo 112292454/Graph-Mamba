@@ -1,0 +1,15 @@
+{
+  "completed": [
+    "Exphormer_LRGB-dblp",
+    "Exphormer_LRGB-coildel",
+    "Exphormer_LRGB-dd",
+    "Exphormer_LRGB-aqsol",
+    "Exphormer_LRGB-colors3"
+  ],
+  "failed": {
+    "Exphormer_LRGB-molhiv": {
+      "error": "超时 (>180s)",
+      "timestamp": "2025-08-20 19:20:08"
+    }
+  }
+}
