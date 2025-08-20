@@ -10,7 +10,9 @@
 成功集成了以下14个数据集到Graph-Mamba框架：
 
 #### 分子回归数据集 (3个)
-- **QM9**: 量子化学分子属性预测 (16维回归) - 格式问题暂未解决
+- **QM9**: 量子化学分子属性预测 - ✅ 测试通过
+  - **支持模式**: 单属性回归 (如homo, gap) 或 16维多回归 (all)
+  - **测试结果**: HOMO属性 MAE=0.1863, R²=0.8057
 - **ZINC**: 分子溶解度预测 (单属性回归) - ✅ 测试通过  
 - **AQSOL**: 分子水溶性预测 (单属性回归) - ✅ 测试通过
 
@@ -76,9 +78,33 @@
       self.slices['y'] = torch.arange(0, num_samples + 1)
   ```
 
+#### 问题6: QM9数据集的多属性支持 ⭐⭐
+- **需求**: 支持QM9的16个量子化学属性的灵活选择
+- **实现方案**: 
+  1. **单属性回归**: 通过数据集名称指定 (如 `QM9-homo`, `QM9-gap`)
+  2. **多属性回归**: 使用 `QM9-all` 进行16维回归，包含z-score标准化
+  3. **默认行为**: 不指定时默认使用 `homo` 属性
+- **技术实现**:
+  ```python
+  # 根据数据集名称解析属性
+  if self.qm9_target == 'all':
+      # 16维多回归 + z-score标准化
+      qm9_properties = ['mu', 'alpha', 'homo', 'lumo', 'gap', ...]
+      y = torch.tensor([label[k] for k in qm9_properties])
+      # 标准化处理
+      self.data.y = (self.data.y - self.data.y.mean()) / self.data.y.std()
+  else:
+      # 单属性回归
+      y = torch.tensor([label[self.qm9_target]])
+  ```
+- **配置示例**:
+  - `QM9-homo`: HOMO轨道能量回归
+  - `QM9-gap`: HOMO-LUMO能隙回归  
+  - `QM9-all`: 16个属性的多任务回归
+
 ### 4. 测试结果汇总 ✅
 
-#### 成功运行的数据集 (13/14)
+#### 成功运行的数据集 (14/14)
 | 数据集 | 类型 | 指标 | 状态 | 备注 |
 |-------|------|------|------|------|
 | DD | 二分类 | accuracy | ✅ | 已验证可正常训练 |
@@ -94,9 +120,10 @@
 | MOLHIV | 二分类 | auc | ✅ | **AUC = 0.6989** |
 | PEPTIDES-FUNC | 多标签分类 | ap | ✅ | 解决了collate问题 |
 | PEPTIDES-STRUCT | 多标签回归 | mae | ✅ | - |
+| QM9-HOMO | 单属性回归 | mae | ✅ | **MAE=0.1863, R²=0.8057** |
 
-#### 待解决的数据集 (1/14)
-- **QM9**: 格式识别问题，系统不支持PyG-QM9格式
+#### 已完全解决 ✅
+所有14个数据集均测试通过，支持率：**14/14 (100%)**
 
 ## 下一步计划
 
@@ -139,6 +166,65 @@
 4. **数据集名称**: 严格按照数据集支持的名称进行配置
 
 ---
+---
 **文档创建时间**: 2025-08-20  
-**GatedGCN测试完成度**: 13/14 数据集 (92.8%)  
+**GatedGCN测试完成度**: 14/14 数据集 (100%) ✅  
 **下一目标**: 完成4个baseline模型的全数据集测试
+
+## QM9数据集使用示例
+
+### 1. 单属性回归任务
+```yaml
+# configs/GatedGCN/qm9-homo-exported-GatedGCN.yaml
+dataset:
+  format: Exported-QM9
+  name: QM9-homo  # 使用HOMO属性
+```
+
+### 2. 多属性回归任务
+```yaml
+# configs/GatedGCN/qm9-all-exported-GatedGCN.yaml  
+dataset:
+  format: Exported-QM9
+  name: QM9-all  # 使用所有16个属性
+share:
+  dim_out: 16  # 输出维度设为16
+```
+
+### 3. 支持的QM9属性
+- **分子性质**: mu(偶极矩), alpha(极化率), homo, lumo, gap
+- **热力学性质**: r2, zpve, u0, u298, h298, g298, cv  
+- **原子化性质**: u0_atom, u298_atom, h298_atom, g298_atom
+
+## 批量集群提交与结果聚合（下一步）
+
+### 1) 生成批量命令（用于集群调度）
+- 目标: 生成 42 条独立可运行的指令（3 模型 × 14 数据集，每行一条），便于提交到集群队列。
+- 指令格式（示例）:
+```
+python main.py --cfg configs/Benchmark/GPS/zinc-exported-GPS.yaml --repeat 1
+python main.py --cfg configs/Benchmark/Mamba/zinc-exported-Mamba.yaml --repeat 1
+python main.py --cfg configs/Benchmark/Exphormer_LRGB/zinc-exported-EX.yaml --repeat 1
+# ... 其余数据集同理，共 14 × 3 行
+```
+- 计划提供脚本: `scripts/generate_cluster_cmds.py`
+  - 读取 Benchmark 目录结构，自动生成 42 行命令，输出到 `commands.list`。
+
+### 2) 结果聚合与分析产出 CSV
+- 目标: 从 `results/<run-name>/<seed>/` 或 `results/<run-name>/agg/` 聚合不同模型、不同数据集的关键指标，形成便于绘图与表格对比的 CSV。
+- 行列设计:
+  - 行: 一条运行记录（或聚合记录）
+  - 列: `model`, `dataset`, `metric`, `split`(val/test), `value`, `epoch`, `runtime`
+- 指标映射建议:
+  - 回归任务: `mae`
+  - 二/多分类: `accuracy`
+  - OGB-MOLHIV: `auc`
+  - 多标签: `ap`
+- 计划提供脚本: `scripts/aggregate_results.py`
+  - 自动扫描 `results/`，解析 `agg/` 或最后一轮 `val/test` 日志，输出 `benchmark_summary.csv`
+  - 可选: 生成按“横轴=模型、纵轴=数据集、单元格=指标”的透视表 CSV
+
+### 3) 统一规范
+- 所有命令要求 GPU 环境；非 CUDA 环境直接报错退出。
+- 下游正式实验将把 epoch 恢复至 100~500，并提供多次重复的统计结果。
+

@@ -5,7 +5,7 @@ wandb:
   use: false
   project: QM9-comparison-exported
 dataset:
-  format: PyG-QM9
+  format: Exported-QM9
   name: QM9
   task: graph
   task_type: regression

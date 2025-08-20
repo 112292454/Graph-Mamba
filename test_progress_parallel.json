@@ -1,0 +1,75 @@
+{
+  "completed": [
+    "GPS-zinc",
+    "Mamba-coildel",
+    "Mamba-peptides-func",
+    "GPS-peptides-func",
+    "Exphormer_LRGB-qm9",
+    "Mamba-mutagenicity",
+    "GPS-qm9",
+    "GPS-coildel",
+    "GPS-aqsol",
+    "Exphormer_LRGB-colors3",
+    "GPS-molhiv",
+    "Exphormer_LRGB-coildel",
+    "Mamba-dblp",
+    "GPS-mutagenicity",
+    "Mamba-qm9",
+    "Mamba-synthetic",
+    "Exphormer_LRGB-dblp",
+    "GPS-synthetic",
+    "Exphormer_LRGB-molhiv",
+    "Exphormer_LRGB-aqsol",
+    "GPS-dblp",
+    "Exphormer_LRGB-zinc",
+    "Mamba-dd",
+    "GPS-proteins",
+    "Mamba-molhiv",
+    "Exphormer_LRGB-synthetic",
+    "Mamba-proteins",
+    "Exphormer_LRGB-dd",
+    "Mamba-colors3",
+    "Exphormer_LRGB-proteins",
+    "Exphormer_LRGB-mutagenicity",
+    "GPS-colors3",
+    "Mamba-zinc"
+  ],
+  "failed": {
+    "Exphormer_LRGB-twitter": {
+      "error": "Process exited with code 1.",
+      "timestamp": "2025-08-20 20:55:59"
+    },
+    "GPS-dd": {
+      "error": "Process exited with code 1.",
+      "timestamp": "2025-08-20 20:58:56"
+    },
+    "Exphormer_LRGB-peptides-struct": {
+      "error": "Process exited with code 1.",
+      "timestamp": "2025-08-20 20:59:13"
+    },
+    "Exphormer_LRGB-peptides-func": {
+      "error": "Process exited with code -9.",
+      "timestamp": "2025-08-20 20:59:39"
+    },
+    "GPS-twitter": {
+      "error": "Process exited with code 1.",
+      "timestamp": "2025-08-20 21:00:24"
+    },
+    "Mamba-aqsol": {
+      "error": "Process exited with code 1.",
+      "timestamp": "2025-08-20 21:01:50"
+    },
+    "GPS-peptides-struct": {
+      "error": "Process exited with code 1.",
+      "timestamp": "2025-08-20 21:02:00"
+    },
+    "Mamba-twitter": {
+      "error": "Process exited with code 1.",
+      "timestamp": "2025-08-20 21:04:17"
+    },
+    "Mamba-peptides-struct": {
+      "error": "Process exited with code 1.",
+      "timestamp": "2025-08-20 21:06:54"
+    }
+  }
+}

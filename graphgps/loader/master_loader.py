@@ -648,6 +648,10 @@ def preformat_TUDataset(dataset_dir, name):
     # 🔥 检查是否使用导出数据
     if cfg.prep.use_exported_data and cfg.prep.exported_data_dir:
         name_lower = name.lower()
+        # 兼容带有后缀/变体命名的数据集名称（例如: "TWITTER-Real-Graph-Partial"）
+        name_key = name_lower.replace('_', '-').strip()
+        if 'twitter' in name_key:
+            return preformat_exported_twitter(cfg.prep.exported_data_dir)
         if name_lower in ['proteins', 'protein']:
             return preformat_exported_proteins(cfg.prep.exported_data_dir)
         elif name_lower in ['dd']:
