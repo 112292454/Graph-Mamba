@@ -1,8 +1,9 @@
 out_dir: results
 metric_best: ap
+# metric_agg: argmax
 wandb:
   use: false
-  project: peptides-func
+  project: PEPTIDES-FUNC-comparison-exported
 dataset:
   format: OGB
   name: peptides-functional
@@ -10,10 +11,10 @@ dataset:
   task_type: classification_multilabel
   transductive: false
   node_encoder: true
-  node_encoder_name: Atom
+  node_encoder_name: LinearNode
   node_encoder_bn: false
   edge_encoder: true
-  edge_encoder_name: Bond
+  edge_encoder_name: LinearEdge
   edge_encoder_bn: false
 train:
   mode: custom
@@ -42,3 +43,7 @@ optim:
   reduce_factor: 0.5
   schedule_patience: 20
   min_lr: 1e-5
+prep:
+  use_exported_data: true
+  exported_data_dir: /home/gzy/py/Graph-Mamba/export_system/exported/
+seed: 42

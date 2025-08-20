@@ -1,0 +1,66 @@
+# DD数据集对比实验 - 使用导出的token化数据
+# 模型: GatedGCN  
+# 数据源: TokenizerGraph项目导出的标准化数据
+
+out_dir: results
+metric_best: accuracy
+metric_agg: argmax
+wandb:
+  use: False  # 可以设置为True来记录实验
+  project: DD-comparison-exported
+
+dataset:
+  format: PyG-TUDataset  # 仍使用TUDataset格式，但会被导出数据覆盖
+  name: DD
+  task: graph
+  task_type: classification_binary  # DD是二分类任务
+  transductive: False
+  node_encoder: True
+  node_encoder_name: LinearNode  # 导出数据使用LinearNode编码器（token化特征）
+  node_encoder_bn: False
+  edge_encoder: True   # 启用边编码器，将1维token特征编码到隐藏维度
+  edge_encoder_name: LinearEdge
+  edge_encoder_bn: False
+
+train:
+  mode: custom
+  batch_size: 32  # 与原始数据配置完全相同
+  eval_period: 1
+  ckpt_period: 50
+  ckpt_clean: True  # 清理旧checkpoint节省空间
+
+model:
+  type: custom_gnn
+  loss_fun: cross_entropy  # 二分类使用交叉熵损失
+  graph_pooling: mean
+
+gnn:
+  layers_pre_mp: 0
+  layers_mp: 4  # 与原始数据配置完全相同
+  layers_post_mp: 1
+  dim_inner: 64  # 与原始数据配置完全相同
+  layer_type: gatedgcnconv
+  act: relu
+  residual: True
+  dropout: 0.1  # 与原始数据配置完全相同
+  agg: mean
+  normalize_adj: False
+
+optim:
+  optimizer: adamW
+  weight_decay: 1e-4  # 与原始数据配置完全相同
+  base_lr: 0.001      # 与原始数据配置完全相同
+  max_epoch: 200      # 与原始数据配置完全相同
+  scheduler: reduce_on_plateau
+  reduce_factor: 0.5
+  schedule_patience: 20
+  min_lr: 1e-6
+
+# 数据预处理配置
+prep:
+  use_exported_data: True  # 🔥 关键：使用导出的标准化数据
+  exported_data_dir: '/home/gzy/py/Graph-Mamba/export_system/exported/'  # 导出数据目录
+
+# 其他设置
+accelerator: auto
+seed: 42  # 与原始数据配置完全相同，确保公平对比

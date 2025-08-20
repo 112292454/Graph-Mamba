@@ -1,20 +1,21 @@
 out_dir: results
-metric_best: ap
+metric_best: mae
+metric_agg: argmin
 wandb:
-  use: false
-  project: peptides-func
+  use: True
+  project: peptides-struct
 dataset:
   format: OGB
-  name: peptides-functional
+  name: peptides-structural
   task: graph
-  task_type: classification_multilabel
-  transductive: false
-  node_encoder: true
+  task_type: regression
+  transductive: False
+  node_encoder: True
   node_encoder_name: Atom
-  node_encoder_bn: false
-  edge_encoder: true
+  node_encoder_bn: False
+  edge_encoder: True
   edge_encoder_name: Bond
-  edge_encoder_bn: false
+  edge_encoder_bn: False
 train:
   mode: custom
   batch_size: 128
@@ -22,7 +23,7 @@ train:
   ckpt_period: 100
 model:
   type: custom_gnn
-  loss_fun: cross_entropy
+  loss_fun: l1
   graph_pooling: mean
 gnn:
   layers_pre_mp: 0
@@ -31,7 +32,7 @@ gnn:
   dim_inner: 138
   layer_type: gatedgcnconv
   act: relu
-  residual: true
+  residual: True
   dropout: 0.0
 optim:
   optimizer: adamW

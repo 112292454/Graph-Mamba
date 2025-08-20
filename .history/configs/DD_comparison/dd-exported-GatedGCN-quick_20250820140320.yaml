@@ -1,0 +1,66 @@
+# DD数据集快速测试 - 使用导出数据
+# 模型: GatedGCN  
+# 用途: 快速验证配置和数据加载是否正常
+
+out_dir: results
+metric_best: accuracy
+metric_agg: argmax
+wandb:
+  use: False
+  project: DD-quick-test
+
+dataset:
+  format: PyG-TUDataset
+  name: DD
+  task: graph
+  task_type: classification_binary
+  transductive: False
+  node_encoder: True
+  node_encoder_name: LinearNode
+  node_encoder_bn: False
+  edge_encoder: True   # 启用边编码器，将1维token特征编码到32维
+  edge_encoder_name: LinearEdge
+  edge_encoder_bn: False
+
+train:
+  mode: custom
+  batch_size: 16  # 更小的batch size用于快速测试
+  eval_period: 1
+  ckpt_period: 5
+  ckpt_clean: True
+
+model:
+  type: custom_gnn
+  loss_fun: cross_entropy
+  graph_pooling: mean
+
+gnn:
+  layers_pre_mp: 0
+  layers_mp: 2  # 更少的层数用于快速测试
+  layers_post_mp: 1
+  dim_inner: 32  # 更小的维度用于快速测试
+  layer_type: gatedgcnconv
+  act: relu
+  residual: True
+  dropout: 0.1
+  agg: mean
+  normalize_adj: False
+
+optim:
+  optimizer: adamW
+  weight_decay: 1e-4
+  base_lr: 0.001
+  max_epoch: 5  # 🔥 只训练5个epoch用于快速验证
+  scheduler: reduce_on_plateau
+  reduce_factor: 0.5
+  schedule_patience: 3
+  min_lr: 1e-6
+
+# 数据预处理配置
+prep:
+  use_exported_data: True
+  exported_data_dir: '/home/gzy/py/Graph-Mamba/export_system/exported/'
+
+# 其他设置
+accelerator: auto
+seed: 42

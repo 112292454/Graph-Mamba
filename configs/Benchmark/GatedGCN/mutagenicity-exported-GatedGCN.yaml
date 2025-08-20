@@ -1,44 +1,49 @@
 out_dir: results
-metric_best: ap
+metric_best: accuracy
+metric_agg: argmax
 wandb:
   use: false
-  project: peptides-func
+  project: MUTAGENICITY-comparison-exported
 dataset:
-  format: OGB
-  name: peptides-functional
+  format: PyG-TUDataset
+  name: MUTAGENICITY
   task: graph
-  task_type: classification_multilabel
+  task_type: classification_binary
   transductive: false
   node_encoder: true
-  node_encoder_name: Atom
+  node_encoder_name: LinearNode
   node_encoder_bn: false
   edge_encoder: true
-  edge_encoder_name: Bond
+  edge_encoder_name: LinearEdge
   edge_encoder_bn: false
 train:
   mode: custom
-  batch_size: 128
+  batch_size: 32
   eval_period: 1
-  ckpt_period: 100
+  ckpt_period: 50
 model:
   type: custom_gnn
   loss_fun: cross_entropy
   graph_pooling: mean
 gnn:
   layers_pre_mp: 0
-  layers_mp: 5
+  layers_mp: 4
   layers_post_mp: 1
-  dim_inner: 138
+  dim_inner: 64
   layer_type: gatedgcnconv
   act: relu
   residual: true
-  dropout: 0.0
+  dropout: 0.1
 optim:
   optimizer: adamW
-  weight_decay: 0.0
+  weight_decay: 0.0001
   base_lr: 0.001
-  max_epoch: 500
+  max_epoch: 20
   scheduler: reduce_on_plateau
   reduce_factor: 0.5
   schedule_patience: 20
-  min_lr: 1e-5
+  min_lr: 1e-6
+prep:
+  use_exported_data: true
+  exported_data_dir: /home/gzy/py/Graph-Mamba/export_system/exported/
+seed: 42

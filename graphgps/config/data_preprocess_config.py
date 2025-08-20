@@ -23,8 +23,10 @@ def set_cfg_preprocess(cfg):
     cfg.prep.add_reverse_edges = True
     cfg.prep.train_percent = 0.6
     cfg.prep.layer_edge_indices_dir = None
-
-
+    
+    # 使用您导出的标准化数据文件
+    cfg.prep.use_exported_data = False  # 是否使用导出的标准化数据文件
+    cfg.prep.exported_data_dir = ''     # 导出数据文件目录路径 (如: '/path/to/exported/')
 
     # Argument group for adding node distances
     cfg.prep.dist_enable = False

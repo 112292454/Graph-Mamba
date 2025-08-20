@@ -25,6 +25,9 @@ __pycache__/
 .idea
 *.log
 *.bak
+export_system/*/*.pkl
+export_system/*/*/*.pt
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

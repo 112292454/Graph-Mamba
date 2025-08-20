@@ -306,11 +306,14 @@ class MetricWrapper:
                         print(e)
             warnings.filterwarnings("default")
 
-            # Average the metric
-            # metric_val = torch.nanmean(torch.stack(metric_val))  # PyTorch1.10
-            x = torch.stack(metric_val)  # PyTorch<=1.9
-            metric_val = torch.div(torch.nansum(x),
-                                   (~torch.isnan(x)).count_nonzero())
+            # Average the metric robustly
+            if len(metric_val) == 0:
+                device = preds[0].device if isinstance(preds, list) else preds.device
+                return torch.tensor(float('nan'), device=device)
+            x = torch.stack(metric_val)
+            denom = (~torch.isnan(x)).count_nonzero()
+            denom = denom if denom > 0 else torch.tensor(1, device=x.device)
+            metric_val = torch.div(torch.nansum(x), denom)
 
         else:
             metric_val = self.metric(preds, target, **self.kwargs)

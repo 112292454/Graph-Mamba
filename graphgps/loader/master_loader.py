@@ -34,6 +34,17 @@ from graphgps.transform.dist_transforms import (add_dist_features, add_reverse_e
                                                  effective_resistance_embedding,
                                                  effective_resistances_from_embedding)
 
+# 导出数据加载器
+from graphgps.loader.exported_data_loader import (
+    preformat_exported_qm9, preformat_exported_zinc, preformat_exported_aqsol,
+    preformat_exported_molhiv, preformat_exported_colors3, preformat_exported_proteins,
+    preformat_exported_dd, preformat_exported_mutagenicity, preformat_exported_coildel,
+    preformat_exported_dblp, preformat_exported_twitter, preformat_exported_synthetic,
+    preformat_exported_peptides_func, preformat_exported_peptides_struct
+)
+
+
+
 
 def log_loaded_dataset(dataset, format, name):
     logging.info(f"[*] Loaded dataset '{name}' from '{format}':")
@@ -169,10 +180,17 @@ def load_dataset_master(format, name, dataset_dir):
             dataset = preformat_ZINC(dataset_dir, name)
             
         elif pyg_dataset_id == 'AQSOL':
-            dataset = preformat_AQSOL(dataset_dir, name)
+            dataset = preformat_AQSOL(dataset_dir)
 
         else:
             raise ValueError(f"Unexpected PyG Dataset identifier: {format}")
+
+    # 🔥 特殊格式：QM9导出数据
+    elif format == 'Exported-QM9':
+        if cfg.prep.use_exported_data and cfg.prep.exported_data_dir:
+            return preformat_exported_qm9(cfg.prep.exported_data_dir)
+        else:
+            raise ValueError("Exported-QM9 format requires exported data to be enabled")
 
     # GraphGym default loader for Pytorch Geometric datasets
     elif format == 'PyG':
@@ -435,6 +453,12 @@ def preformat_OGB_Graph(dataset_dir, name):
     Returns:
         PyG dataset object
     """
+    # 🔥 检查是否使用导出数据
+    if cfg.prep.use_exported_data and cfg.prep.exported_data_dir:
+        if name == 'ogbg-molhiv':
+            return preformat_exported_molhiv(cfg.prep.exported_data_dir)
+        # 其他OGB数据集可以在这里添加
+    
     dataset = PygGraphPropPredDataset(name=name, root=dataset_dir)
     s_dict = dataset.get_idx_split()
     dataset.split_idxs = [s_dict[s] for s in ['train', 'valid', 'test']]
@@ -582,6 +606,14 @@ def preformat_Peptides(dataset_dir, name):
     Returns:
         PyG dataset object
     """
+    # 🔥 检查是否使用导出数据
+    if cfg.prep.use_exported_data and cfg.prep.exported_data_dir:
+        dataset_type = name.split('-', 1)[1]
+        if dataset_type == 'functional':
+            return preformat_exported_peptides_func(cfg.prep.exported_data_dir)
+        elif dataset_type == 'structural':
+            return preformat_exported_peptides_struct(cfg.prep.exported_data_dir)
+    
     try:
         # Load locally to avoid RDKit dependency until necessary.
         from graphgps.loader.dataset.peptides_functional import \
@@ -613,12 +645,35 @@ def preformat_TUDataset(dataset_dir, name):
     Returns:
         PyG dataset object
     """
-    if name in ['DD', 'NCI1', 'ENZYMES', 'PROTEINS']:
-        func = None
+    # 🔥 检查是否使用导出数据
+    if cfg.prep.use_exported_data and cfg.prep.exported_data_dir:
+        name_lower = name.lower()
+        if name_lower in ['proteins', 'protein']:
+            return preformat_exported_proteins(cfg.prep.exported_data_dir)
+        elif name_lower in ['dd']:
+            return preformat_exported_dd(cfg.prep.exported_data_dir)
+        elif name_lower in ['colors3', 'colors-3']:
+            return preformat_exported_colors3(cfg.prep.exported_data_dir)
+        elif name_lower in ['mutagenicity']:
+            return preformat_exported_mutagenicity(cfg.prep.exported_data_dir)
+        elif name_lower in ['coildel', 'coil-del']:
+            return preformat_exported_coildel(cfg.prep.exported_data_dir)
+        elif name_lower in ['dblp']:
+            return preformat_exported_dblp(cfg.prep.exported_data_dir)
+        elif name_lower in ['twitter']:
+            return preformat_exported_twitter(cfg.prep.exported_data_dir)
+        elif name_lower in ['synthetic']:
+            return preformat_exported_synthetic(cfg.prep.exported_data_dir)
+        # 如果没有对应的导出数据，继续使用原始加载方式
+    
+    if name in ['DD', 'NCI1', 'ENZYMES', 'PROTEINS', 'mutagenicity', 'MUTAGENICITY']:
+        func = None  # 这些数据集有原始特征
     elif name.startswith('IMDB-') or name == "COLLAB":
-        func = T.Constant()
+        func = T.Constant()  # 添加常数特征
+    elif name in ['colors3', 'COLORS3', 'coildel', 'COILDEL', 'synthetic', 'SYNTHETIC', 'dblp', 'DBLP', 'twitter', 'TWITTER']:
+        func = T.OneHotDegree(max_degree=200)  # 使用度特征（您可以根据需要调整max_degree）
     else:
-        ValueError(f"Loading dataset '{name}' from TUDataset is not supported.")
+        raise ValueError(f"Loading dataset '{name}' from TUDataset is not supported.")
     dataset = TUDataset(dataset_dir, name, pre_transform=func)
     return dataset
 
@@ -663,6 +718,10 @@ def preformat_ZINC(dataset_dir, name):
     Returns:
         PyG dataset object
     """
+    # 🔥 检查是否使用导出数据
+    if cfg.prep.use_exported_data and cfg.prep.exported_data_dir:
+        return preformat_exported_zinc(cfg.prep.exported_data_dir)
+    
     if name not in ['subset', 'full']:
         raise ValueError(f"Unexpected subset choice for ZINC dataset: {name}")
     dataset = join_dataset_splits(
@@ -681,6 +740,10 @@ def preformat_AQSOL(dataset_dir):
     Returns:
         PyG dataset object
     """
+    # 🔥 检查是否使用导出数据
+    if cfg.prep.use_exported_data and cfg.prep.exported_data_dir:
+        return preformat_exported_aqsol(cfg.prep.exported_data_dir)
+    
     dataset = join_dataset_splits(
         [AQSOL(root=dataset_dir, split=split)
          for split in ['train', 'val', 'test']]

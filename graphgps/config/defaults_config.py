@@ -27,6 +27,10 @@ def extended_cfg(cfg):
     # Additional name tag used in `run_dir` and `wandb_name` auto generation.
     cfg.name_tag = ""
 
+    # Training mode: 'standard' for GraphGym default, 'custom' for extended functionality
+    cfg.train.mode = 'custom'
+    cfg.device = 'cuda'
+
     # In training, if True (and also cfg.train.enable_ckpt is True) then
     # always checkpoint the current best model based on validation performance,
     # instead, when False, follow cfg.train.eval_period checkpointing frequency.
