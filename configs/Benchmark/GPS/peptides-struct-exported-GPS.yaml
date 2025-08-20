@@ -8,7 +8,7 @@ dataset:
   format: OGB
   name: peptides-structural
   task: graph
-  task_type: regression_multilabel
+  task_type: regression
   transductive: false
   node_encoder: true
   node_encoder_name: LinearNode

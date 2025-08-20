@@ -1,0 +1,65 @@
+dataset:
+  edge_encoder: true
+  edge_encoder_bn: false
+  edge_encoder_name: LinearEdge
+  format: PyG-AQSOL
+  name: AQSOL
+  node_encoder: true
+  node_encoder_bn: false
+  node_encoder_name: LinearNode
+  task: graph
+  task_type: regression
+  transductive: false
+gnn:
+  act: relu
+  batchnorm: true
+  dim_inner: 64
+  dropout: 0.1
+  head: default
+  layers_post_mp: 1
+  layers_pre_mp: 0
+gt:
+  attn_dropout: 0.5
+  batch_norm: false
+  dim_hidden: 64
+  dropout: 0.1
+  layer_norm: true
+  layer_type: CustomGatedGCN+Mamba_Hybrid_Degree_Noise
+  n_heads: 4
+metric_agg: argmin
+metric_best: mae
+model:
+  graph_pooling: mean
+  loss_fun: l1
+  type: GPSModel
+optim:
+  base_lr: 0.0003
+  clip_grad_norm: true
+  max_epoch: 2
+  num_warmup_epochs: 10
+  optimizer: adamW
+  scheduler: cosine_with_warmup
+  weight_decay: 0.0001
+out_dir: results
+posenc_LapPE:
+  dim_pe: 16
+  eigen:
+    eigvec_norm: L2
+    laplacian_norm: none
+    max_freqs: 10
+  enable: true
+  layers: 2
+  model: DeepSet
+  raw_norm_type: none
+prep:
+  exported_data_dir: /home/gzy/py/Graph-Mamba/export_system/exported/
+  use_exported_data: true
+seed: 42
+train:
+  batch_size: 128
+  ckpt_period: 100
+  eval_period: 1
+  mode: custom
+wandb:
+  project: AQSOL-comparison-exported-Mamba
+  use: false

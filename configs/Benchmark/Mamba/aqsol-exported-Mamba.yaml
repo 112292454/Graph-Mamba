@@ -39,10 +39,10 @@ gt:
   layer_type: CustomGatedGCN+Mamba_Hybrid_Degree_Noise
   n_heads: 4
   dim_hidden: 64
-  dropout: 0.0
+  dropout: 0.1
   attn_dropout: 0.5
-  layer_norm: false
-  batch_norm: true
+  layer_norm: true
+  batch_norm: false
 gnn:
   head: default
   layers_pre_mp: 0
@@ -50,12 +50,12 @@ gnn:
   dim_inner: 64
   batchnorm: true
   act: relu
-  dropout: 0.0
+  dropout: 0.1
 optim:
   clip_grad_norm: true
   optimizer: adamW
   weight_decay: 0.0001
-  base_lr: 0.001
+  base_lr: 0.0003
   max_epoch: 500
   scheduler: cosine_with_warmup
   num_warmup_epochs: 10

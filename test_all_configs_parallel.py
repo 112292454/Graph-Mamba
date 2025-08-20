@@ -473,7 +473,17 @@ def run_all_tests_parallel():
                     task = pending.pop(0)
                     model_name, config_path, dataset_name, config_key = task
                     print(f"[GPU{gid}#slot{idx}] 🔧 启动 {config_key}")
-                    procRec, early_result, temp_dir = launch_task_nonblocking(config_path, config_key, gid, timeout=300)
+                    # 针对耗时数据集提高超时阈值，避免误判失败
+                    key_lower = config_key.lower()
+                    if 'twitter' in key_lower:
+                        tmo = 1800  # Twitter 首个 epoch 较慢
+                    elif 'peptides' in key_lower:
+                        tmo = 1200
+                    elif 'aqsol' in key_lower:
+                        tmo = 900
+                    else:
+                        tmo = 300
+                    procRec, early_result, temp_dir = launch_task_nonblocking(config_path, config_key, gid, timeout=tmo)
                     if early_result is not None:
                         results_dict[config_key] = early_result
                         try:
