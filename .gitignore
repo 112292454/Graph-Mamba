@@ -27,7 +27,8 @@ __pycache__/
 *.bak
 export_system/*/*.pkl
 export_system/*/*/*.pt
-
+.history/
+/outputs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

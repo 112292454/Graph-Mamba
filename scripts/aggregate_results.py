@@ -3,7 +3,7 @@
 聚合实验结果脚本
 
 此脚本从 results/ 目录聚合不同模型、不同数据集的实验结果，
-生成便于分析的CSV文件和透视表。
+生成便于分析的CSV文件和method×dataset透视表。
 
 使用方法:
     python scripts/aggregate_results.py [--output-dir outputs]
@@ -11,6 +11,8 @@
 输出:
     - benchmark_summary.csv: 详细结果记录
     - benchmark_pivot.csv: 透视表（横轴=模型，纵轴=数据集×指标）
+    - MAE_best.csv: 回归任务MAE表格（模型×数据集）
+    - Acc_best.csv: 分类任务准确率表格（模型×数据集）
 """
 
 import os
@@ -21,6 +23,7 @@ from pathlib import Path
 import pandas as pd
 from typing import Dict, List, Tuple, Optional
 import re
+from collections import defaultdict
 
 def parse_result_dir_name(result_dir_name: str) -> Tuple[str, str]:
     """
@@ -50,6 +53,36 @@ def parse_result_dir_name(result_dir_name: str) -> Tuple[str, str]:
     
     return result_dir_name, "Unknown"
 
+def get_model_name_mapping() -> Dict[str, str]:
+    """
+    映射目录名中的模型名到标准模型名
+    """
+    return {
+        'GatedGCN': 'GatedGCN',
+        'GPS': 'GraphGPS', 
+        'EX': 'Exphormer',
+        'Mamba': 'GraphMamba',
+        # 可能的其他映射
+        'Exphormer': 'Exphormer',
+        'GraphGPS': 'GraphGPS',
+        'GraphMamba': 'GraphMamba'
+    }
+
+def get_model_order() -> List[str]:
+    """
+    返回模型的排序顺序
+    """
+    return ['GatedGCN', 'GraphGPS', 'Exphormer', 'GraphMamba']
+
+def get_dataset_classification() -> Tuple[List[str], List[str]]:
+    """
+    返回回归和分类数据集的列表，按照指定顺序
+    """
+    regression_datasets = ['qm9', 'zinc', 'aqsol', 'peptides-struct']
+    classification_datasets = ['colors3', 'proteins', 'synthetic', 'mutagenicity', 
+                             'coildel', 'dblp', 'dd', 'twitter', 'molhiv', 'peptides-func']
+    return regression_datasets, classification_datasets
+
 def get_dataset_metric_mapping() -> Dict[str, str]:
     """
     根据数据集类型返回主要评估指标的映射
@@ -78,6 +111,18 @@ def get_dataset_metric_mapping() -> Dict[str, str]:
         'peptides-func': 'ap'
     }
 
+def determine_task_type(dataset: str, metric_mapping: Dict[str, str]) -> str:
+    """
+    根据数据集确定任务类型
+    """
+    base_dataset = dataset.split('-')[0] if '-' in dataset else dataset
+    metric = metric_mapping.get(base_dataset, metric_mapping.get(dataset, 'accuracy'))
+    
+    if metric == 'mae':
+        return 'regression'
+    else:
+        return 'classification'
+
 def load_json_safely(file_path: Path) -> Optional[Dict]:
     """安全地加载JSON文件"""
     try:
@@ -87,20 +132,75 @@ def load_json_safely(file_path: Path) -> Optional[Dict]:
         print(f"⚠️  警告: 无法读取 {file_path}: {e}")
         return None
 
-def extract_metrics_from_result(result_dir: Path) -> Dict:
+def extract_best_metric_value(result_dir: Path, dataset: str, metric_mapping: Dict[str, str]) -> Optional[float]:
     """
-    从结果目录提取关键指标
-    
-    优先级:
-    1. agg/val/best.json (验证集最佳结果)
-    2. agg/test/best.json (测试集最佳结果，如果存在)
-    3. {seed}/test/stats.json的最后一行 (测试集最终结果)
+    从结果目录提取最佳指标值
     
     Args:
         result_dir: 结果目录路径
+        dataset: 数据集名称
+        metric_mapping: 指标映射
         
     Returns:
-        包含指标的字典
+        最佳指标值，如果没有找到则返回None
+    """
+    # 确定目标指标
+    base_dataset = dataset.split('-')[0] if '-' in dataset else dataset
+    target_metric = metric_mapping.get(base_dataset, metric_mapping.get(dataset, 'accuracy'))
+    
+    best_value = None
+    
+    # 优先尝试读取agg/test/best.json (测试集最佳结果)
+    test_best_file = result_dir / "agg" / "test" / "best.json"
+    if test_best_file.exists():
+        data = load_json_safely(test_best_file)
+        if data and target_metric in data:
+            return data[target_metric]
+    
+    # 尝试读取agg/val/best.json (验证集最佳结果)
+    val_best_file = result_dir / "agg" / "val" / "best.json"
+    if val_best_file.exists():
+        data = load_json_safely(val_best_file)
+        if data and target_metric in data:
+            best_value = data[target_metric]
+    
+    # 如果没有agg结果，尝试从seed目录读取
+    if best_value is None:
+        # 查找seed目录（通常是数字命名）
+        seed_dirs = [d for d in result_dir.iterdir() 
+                    if d.is_dir() and d.name.isdigit()]
+        
+        if seed_dirs:
+            # 从所有seed中找最佳值
+            seed_values = []
+            for seed_dir in seed_dirs:
+                # 尝试读取test/stats.json的最后一行
+                test_stats_file = seed_dir / "test" / "stats.json"
+                if test_stats_file.exists():
+                    try:
+                        with open(test_stats_file, 'r') as f:
+                            lines = f.readlines()
+                            if lines:
+                                last_line = lines[-1].strip()
+                                if last_line:
+                                    data = json.loads(last_line)
+                                    if target_metric in data:
+                                        seed_values.append(data[target_metric])
+                    except Exception as e:
+                        continue
+            
+            if seed_values:
+                # 根据指标类型选择最佳值
+                if target_metric == 'mae':  # 越小越好
+                    best_value = min(seed_values)
+                else:  # accuracy, auc, ap 越大越好
+                    best_value = max(seed_values)
+    
+    return best_value
+
+def extract_metrics_from_result(result_dir: Path) -> Dict:
+    """
+    从结果目录提取关键指标 (保留原函数用于详细分析)
     """
     metrics = {}
     
@@ -145,9 +245,62 @@ def extract_metrics_from_result(result_dir: Path) -> Dict:
     
     return metrics
 
+def collect_best_results_for_tables(results_dir: Path) -> Dict[str, Dict[str, Dict[str, float]]]:
+    """
+    收集所有实验的最佳结果，组织成用于创建method×dataset表格的格式
+    
+    Returns:
+        {task_type: {model: {dataset: best_value}}}
+    """
+    model_mapping = get_model_name_mapping()
+    dataset_metrics = get_dataset_metric_mapping()
+    
+    # 组织结果: {task_type: {model: {dataset: value}}}
+    results = defaultdict(lambda: defaultdict(dict))
+    
+    print("🔍 扫描结果目录收集最佳结果...")
+    
+    # 遍历results目录下的所有子目录
+    for result_dir in results_dir.iterdir():
+        if not result_dir.is_dir():
+            continue
+            
+        # 跳过特殊目录
+        if result_dir.name.startswith('.') or result_dir.name == 'parallel_test_logs':
+            continue
+        
+        print(f"📊 处理: {result_dir.name}")
+        
+        # 解析目录名获取数据集和模型
+        dataset, model_raw = parse_result_dir_name(result_dir.name)
+        
+        # 映射模型名
+        model = model_mapping.get(model_raw, model_raw)
+        
+        # 提取最佳指标值
+        best_value = extract_best_metric_value(result_dir, dataset, dataset_metrics)
+        
+        if best_value is None:
+            print(f"   ⚠️  未找到有效结果")
+            continue
+        
+        # 确定任务类型
+        task_type = determine_task_type(dataset, dataset_metrics)
+        
+        # 存储结果
+        results[task_type][model][dataset] = best_value
+        
+        # 确定指标名称用于显示
+        base_dataset = dataset.split('-')[0] if '-' in dataset else dataset
+        metric_name = dataset_metrics.get(base_dataset, dataset_metrics.get(dataset, 'accuracy'))
+        
+        print(f"   ✅ {model} - {dataset}: {metric_name}={best_value:.4f}")
+    
+    return dict(results)
+
 def aggregate_all_results(results_dir: Path) -> List[Dict]:
     """
-    聚合results目录下所有实验结果
+    聚合results目录下所有实验结果 (保留原函数用于详细分析)
     """
     all_results = []
     dataset_metrics = get_dataset_metric_mapping()
@@ -212,9 +365,65 @@ def aggregate_all_results(results_dir: Path) -> List[Dict]:
     print(f"\n📈 总计处理了 {len(all_results)} 条结果记录")
     return all_results
 
+def create_method_dataset_tables(results: Dict[str, Dict[str, Dict[str, float]]], output_dir: Path):
+    """
+    创建method×dataset表格
+    
+    Args:
+        results: {task_type: {model: {dataset: best_value}}} 格式的结果
+        output_dir: 输出目录
+    """
+    regression_datasets, classification_datasets = get_dataset_classification()
+    model_order = get_model_order()
+    
+    for task_type, task_results in results.items():
+        if task_type == 'regression':
+            datasets = regression_datasets
+            table_name = "MAE_best.csv"
+            metric_display = "MAE"
+        else:  # classification
+            datasets = classification_datasets
+            table_name = "Acc_best.csv" 
+            metric_display = "Accuracy"
+        
+        print(f"\n📊 创建{metric_display}表格...")
+        
+        # 创建表格数据
+        table_data = []
+        
+        # 按照指定顺序处理每个模型
+        for model in model_order:
+            if model not in task_results:
+                continue
+                
+            row = {'Model': model}
+            model_results = task_results[model]
+            
+            for dataset in datasets:
+                if dataset in model_results:
+                    value = model_results[dataset]
+                    row[dataset] = f"{value:.4f}"
+                else:
+                    row[dataset] = "N/A"
+            
+            table_data.append(row)
+        
+        # 如果有数据，创建并保存表格
+        if table_data:
+            df = pd.DataFrame(table_data)
+            output_file = output_dir / table_name
+            df.to_csv(output_file, index=False)
+            print(f"💾 {metric_display}表格已保存到: {output_file}")
+            
+            # 显示表格预览
+            print(f"\n📋 {metric_display}表格预览:")
+            print(df.to_string(index=False))
+        else:
+            print(f"⚠️  没有找到{task_type}任务的有效结果")
+
 def create_pivot_table(df: pd.DataFrame, output_file: Path):
     """
-    创建透视表：横轴=模型，纵轴=数据集×指标
+    创建透视表：横轴=模型，纵轴=数据集×指标 (保留原函数)
     """
     # 只使用test split或val split的结果用于透视表
     pivot_df = df[df['split'].isin(['test', 'val'])].copy()
@@ -274,40 +483,56 @@ def main():
     print()
     
     try:
-        # 聚合所有结果
-        all_results = aggregate_all_results(results_dir)
+        # 收集最佳结果用于method×dataset表格
+        best_results = collect_best_results_for_tables(results_dir)
         
-        if not all_results:
-            print("❌ 没有找到任何有效的实验结果")
+        if not best_results:
+            print("❌ 没有找到任何有效的最佳结果")
             sys.exit(1)
         
-        # 转换为DataFrame
-        df = pd.DataFrame(all_results)
+        # 创建method×dataset表格
+        create_method_dataset_tables(best_results, output_dir)
         
-        # 保存详细结果
-        summary_file = output_dir / "benchmark_summary.csv"
-        df.to_csv(summary_file, index=False)
-        print(f"\n💾 详细结果已保存到: {summary_file}")
+        # 聚合所有详细结果（保留原有功能）
+        print(f"\n" + "="*50)
+        print("📈 生成详细结果分析...")
+        all_results = aggregate_all_results(results_dir)
         
-        # 显示汇总统计
-        print(f"\n📊 结果汇总:")
-        print(f"   总记录数: {len(df)}")
-        print(f"   模型数量: {df['model'].nunique()}")
-        print(f"   数据集数量: {df['dataset'].nunique()}")
-        
-        model_counts = df['model'].value_counts()
-        print(f"\n🤖 各模型结果数量:")
-        for model, count in model_counts.items():
-            print(f"   {model}: {count} 条")
-        
-        # 创建透视表
-        pivot_file = output_dir / "benchmark_pivot.csv"
-        create_pivot_table(df, pivot_file)
-        
-        print(f"\n🎉 结果聚合完成！")
-        print(f"📝 生成的文件:")
-        print(f"   - {summary_file}: 详细结果记录")
-        print(f"   - {pivot_file}: 透视表（模型×数据集）")
+        if all_results:
+            # 转换为DataFrame
+            df = pd.DataFrame(all_results)
+            
+            # 保存详细结果
+            summary_file = output_dir / "benchmark_summary.csv"
+            df.to_csv(summary_file, index=False)
+            print(f"\n💾 详细结果已保存到: {summary_file}")
+            
+            # 显示汇总统计
+            print(f"\n📊 结果汇总:")
+            print(f"   总记录数: {len(df)}")
+            print(f"   模型数量: {df['model'].nunique()}")
+            print(f"   数据集数量: {df['dataset'].nunique()}")
+            
+            model_counts = df['model'].value_counts()
+            print(f"\n🤖 各模型结果数量:")
+            for model, count in model_counts.items():
+                print(f"   {model}: {count} 条")
+            
+            # 创建透视表
+            pivot_file = output_dir / "benchmark_pivot.csv"
+            create_pivot_table(df, pivot_file)
+            
+            print(f"\n🎉 结果聚合完成！")
+            print(f"📝 生成的文件:")
+            print(f"   - MAE_best.csv: 回归任务MAE表格（模型×数据集）")
+            print(f"   - Acc_best.csv: 分类任务准确率表格（模型×数据集）")
+            print(f"   - {summary_file}: 详细结果记录")
+            print(f"   - {pivot_file}: 透视表（模型×数据集）")
+        else:
+            print(f"\n🎉 method×dataset表格生成完成！")
+            print(f"📝 生成的文件:")
+            print(f"   - MAE_best.csv: 回归任务MAE表格（模型×数据集）")
+            print(f"   - Acc_best.csv: 分类任务准确率表格（模型×数据集）")
         
     except Exception as e:
         print(f"❌ 脚本执行出错: {e}")
